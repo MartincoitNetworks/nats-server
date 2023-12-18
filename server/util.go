@@ -295,12 +295,13 @@ func catchSignal(pathSelector *pan.DefaultSelector) {
 
 	reloadSignals := make(chan os.Signal, 1)
 
-	signal.Notify(reloadSignals, syscall.SIGUSR2)
+	// kill -30 <PID> to get path to print to the log
+	signal.Notify(reloadSignals, syscall.SIGPWR)
 
-	for { //We are looping here because config reload can happen multiple times.
+	for {
 		select {
 		case <-reloadSignals:
-			fmt.Println(pathSelector.Path())
+			fmt.Printf("path is: %s\n", pathSelector.Path())
 		}
 	}
 }
@@ -322,8 +323,7 @@ func natsDialScion(address string, pathPreference string, timeout time.Duration)
 	pathSelector := pan.NewDefaultSelector()
 	ql, err := pan.DialQUIC(context.Background(), netaddr.IPPort{}, addr, policy, pathSelector, "", tlsCfg, nil)
 
-	fmt.Println(pathSelector.Path())
-    go catchSignal(pathSelector)
+	fmt.Printf("path is: %s\n", pathSelector.Path())
 	if err != nil {
 		return nil, err
 	}
@@ -331,6 +331,9 @@ func natsDialScion(address string, pathPreference string, timeout time.Duration)
 	if err != nil {
 		return nil, err
 	}
+	// for path info from the PID
+	go catchSignal(pathSelector)
+
 	return stream, nil
 }
 
