@@ -21,10 +21,13 @@ import (
 	"math"
 	"net"
 	"net/url"
+    "os"
+	"os/signal"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/netsec-ethz/scion-apps/pkg/pan"
@@ -288,6 +291,20 @@ func natsDialTimeout(network, address string, timeout time.Duration) (net.Conn, 
 	return d.Dial(network, address)
 }
 
+func catchSignal(pathSelector *pan.DefaultSelector) {
+
+	reloadSignals := make(chan os.Signal, 1)
+
+	signal.Notify(reloadSignals, syscall.SIGUSR2)
+
+	for { //We are looping here because config reload can happen multiple times.
+		select {
+		case <-reloadSignals:
+			fmt.Println(pathSelector.Path())
+		}
+	}
+}
+
 func natsDialScion(address string, pathPreference string, timeout time.Duration) (net.Conn, error) {
 	var policy pan.Policy
 	var err error
@@ -304,7 +321,9 @@ func natsDialScion(address string, pathPreference string, timeout time.Duration)
 	}
 	pathSelector := pan.NewDefaultSelector()
 	ql, err := pan.DialQUIC(context.Background(), netaddr.IPPort{}, addr, policy, pathSelector, "", tlsCfg, nil)
+
 	fmt.Println(pathSelector.Path())
+    go catchSignal(pathSelector)
 	if err != nil {
 		return nil, err
 	}
